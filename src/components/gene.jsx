@@ -1,0 +1,191 @@
+import React from 'react';
+import JavaScriptObfuscator from 'javascript-obfuscator';
+import html2pdf from 'html2pdf.js';
+
+const questions = [
+  {
+    id: 1,
+    question: 'What is 2 + 2?',
+    responses: [
+      { id: 1, value: '3', correct: false },
+      { id: 2, value: '4', correct: true },
+      { id: 3, value: '5', correct: false },
+    ],
+  },
+  {
+    id: 2,
+    question: 'What is the capital of France?',
+    responses: [
+      { id: 1, value: 'Berlin', correct: false },
+      { id: 2, value: 'Madrid', correct: false },
+      { id: 3, value: 'Paris', correct: true },
+    ],
+  },
+  {
+    id: 3,
+    question: 'What is 5 + 5?',
+    responses: [
+      { id: 1, value: '10', correct: true },
+      { id: 2, value: '15', correct: false },
+      { id: 3, value: '20', correct: false },
+    ],
+  },
+];
+
+const QuizApp = () => {
+
+
+  const getObfuscatedScript = () => {
+    const originalScript = `
+      let currentQuestion = 0;
+      const totalQuestions = ${questions.length};
+      let score = 0;
+
+      function selectAnswer(questionIndex, correct, answer) {
+        if (correct === true) {
+          score++;
+        }
+
+        document.getElementById('question-' + questionIndex).classList.add('hidden');
+
+        if (questionIndex < totalQuestions) {
+          currentQuestion++;
+          document.getElementById('question-' + (currentQuestion + 1)).classList.remove('hidden');
+        } else {
+          showResult();
+        }
+      }
+
+      function showResult() {
+        document.getElementById('quiz-result').classList.remove('hidden');
+        document.getElementById('quiz-score').textContent = 'Your score: ' + score + ' / ' + totalQuestions;
+      }
+        
+    `;
+
+    const obfuscationResult = JavaScriptObfuscator.obfuscate(originalScript, {
+      compact: true,
+      controlFlowFlattening: true,
+      stringArrayEncoding: ['base64'],
+    });
+
+    return obfuscationResult.getObfuscatedCode();
+  };
+
+  // Function to generate HTML for the quiz
+  const generateHTML = () => {
+    const obfuscatedScript = getObfuscatedScript();
+
+    const quizHTML = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Interactive Quiz</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          button { margin: 10px 0; padding: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+          button:hover { background-color: #45a049; }
+          .question { font-size: 20px; }
+          .result { font-size: 22px; font-weight: bold; color: green; margin-top: 20px; }
+          .hidden { display: none; }
+        </style>
+      </head>
+      <body>
+        <h1>Interactive Quiz</h1>
+        <div id="quiz-container">
+          ${questions
+            .map((question, index) => {
+              return `
+                <div id="question-${index + 1}" class="question-container ${index === 0 ? '' : 'hidden'}">
+                  <p class="question">${question.question}</p>
+                  <div id="responses-${index + 1}">
+                    ${question.responses
+                      .map(
+                        (response) => `
+                          <button onclick="selectAnswer(${index + 1}, ${response.correct ? 'true' : 'false'}, '${response.value}')">${response.value}</button>
+                        `
+                      )
+                      .join('')}
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+          <div id="quiz-result" class="hidden">
+            <h2>Quiz Finished!</h2>
+            <p id="quiz-score" class="result"></p>
+            <button onclick="location.reload()">Restart Quiz</button>
+          </div>
+        </div>
+        <script>
+          ${obfuscatedScript}
+        </script>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([quizHTML], { type: 'text/html' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'quiz.html';
+    link.click();
+  };
+  const generatePDF = () => {
+    // Generate HTML content dynamically
+    const pdfContent = `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h1 style="text-align: center;">Quiz Questions</h1>
+        ${questions
+          .map(
+            (q, index) => `
+              <div style="margin-bottom: 20px;">
+                <h2>Question ${index + 1}: ${q.question}</h2>
+                <ul>
+                  ${q.responses
+                    .map(
+                      (resp) => `<li>${resp.value}</li>`
+                    )
+                    .join('')}
+                </ul>
+              </div>
+            `
+          )
+          .join('')}
+        <footer style="margin-top: 50px; text-align: center; font-size: 12px; color: #888;">
+          Generated by QuizApp
+        </footer>
+      </div>
+    `;
+
+    // Use a temporary div to render content for html2pdf
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = pdfContent;
+    document.body.appendChild(tempDiv);
+
+    const options = {
+      margin: 1,
+      filename: 'quiz-questions.pdf',
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    };
+
+    html2pdf().set(options).from(tempDiv).save();
+
+    // Clean up the temporary div after generating the PDF
+    document.body.removeChild(tempDiv);
+  };
+
+
+  return (
+    <div>
+      <h1>Quiz App</h1>
+      <button onClick={generateHTML}>Download Quiz as HTML</button>
+      <button onClick={generatePDF}>Generate PDF</button>
+    
+    </div>
+  );
+};
+
+export default QuizApp;
